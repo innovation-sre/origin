@@ -16,7 +16,7 @@ import (
 
 // RunInPodContainer will run provided command in the specified pod container.
 func RunInPodContainer(oc *exutil.CLI, selector labels.Selector, cmd []string) error {
-	pods, err := exutil.WaitForPods(oc.KubeClient().CoreV1().Pods(oc.Namespace()), selector, exutil.CheckPodIsRunning, 1, 4*time.Minute)
+	pods, err := exutil.WaitForPods(oc, oc.KubeClient().CoreV1().Pods(oc.Namespace()), selector, exutil.CheckPodIsRunning, exutil.CheckPodIsNotReady, 1, 4*time.Minute)
 	if err != nil {
 		return err
 	}

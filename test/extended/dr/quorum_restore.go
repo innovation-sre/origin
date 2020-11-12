@@ -300,10 +300,10 @@ var _ = g.Describe("[Feature:DisasterRecovery][Disruptive]", func() {
 				}
 
 				framework.Logf("Wait for etcd pods to become available")
-				_, err = exutil.WaitForPods(
+				_, err = exutil.WaitForPods(oc,
 					oc.AdminKubeClient().CoreV1().Pods("openshift-etcd"),
 					exutil.ParseLabelsOrDie("k8s-app=etcd"),
-					exutil.CheckPodIsReady,
+					exutil.CheckPodIsReady, exutil.CheckPodIsNotReady,
 					expectedNumberOfMasters,
 					10*time.Minute,
 				)
@@ -362,10 +362,10 @@ func runPodSigner(oc *exutil.CLI, survivingNode *corev1.Node, imagePullSecretPat
 	o.Expect(err).NotTo(o.HaveOccurred())
 
 	framework.Logf("Wait for etcd signer pod to become Ready")
-	_, err = exutil.WaitForPods(
+	_, err = exutil.WaitForPods(oc,
 		oc.AdminKubeClient().CoreV1().Pods("openshift-config"),
 		exutil.ParseLabelsOrDie("k8s-app=etcd"),
-		exutil.CheckPodIsReady,
+		exutil.CheckPodIsReady, exutil.CheckPodIsNotReady,
 		1,
 		10*time.Minute,
 	)

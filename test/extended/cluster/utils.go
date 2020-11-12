@@ -3,6 +3,7 @@ package cluster
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -12,7 +13,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
-
+	"errors"
+	"math/rand"
 	"github.com/ghodss/yaml"
 
 	kapiv1 "k8s.io/api/core/v1"
@@ -25,6 +27,7 @@ import (
 	kclientset "k8s.io/client-go/kubernetes"
 	"k8s.io/kubernetes/test/e2e/framework"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
+	//e2epod "k8s.io/kubernetes/test/e2e/framework/pod"
 	"k8s.io/kubernetes/test/e2e/framework/pod"
 
 	"github.com/openshift/library-go/pkg/template/templateprocessingclient"
@@ -160,7 +163,7 @@ func (p *ClusterLoaderObjectType) createPodStruct(ns string, labels map[string]s
 }
 
 // CreatePods creates pods in user defined namespaces with user configurable tuning sets
-func (p *ClusterLoaderObjectType) CreatePods(c kclientset.Interface, ns string, labels map[string]string, spec kapiv1.PodSpec, tuning *TuningSetType, step *metrics.PodStepDuration) error {
+func (p *ClusterLoaderObjectType) CreatePods(oc *exutil.CLI, c kclientset.Interface, ns string, labels map[string]string, spec kapiv1.PodSpec, tuning *TuningSetType, step *metrics.PodStepDuration) error {
 	if len(spec.Containers) == 0 && p.Image == "" {
 		return fmt.Errorf("pod definition missing both spec and image (at least one is required)")
 	}
@@ -173,6 +176,28 @@ func (p *ClusterLoaderObjectType) CreatePods(c kclientset.Interface, ns string, 
 			if err == nil {
 				break
 			}
+			podName := fmt.Sprintf(p.Basename+"-pod-%v", i)
+			framework.Logf("Error: %s while deploying Pod %s. Re-trying deployment after cleanup", err.Error(), podName)
+
+			if err == io.ErrUnexpectedEOF {
+				framework.Logf("err == io.ErrUnexpectedEOF")
+			} else if err.Error() == "unexpected EOF" {
+				framework.Logf("err == \"unexpected EOF\"")
+			}
+
+			if err = c.CoreV1().Pods(ns).Delete(podName, nil); err != nil {
+				framework.Logf("unable to cleanup pod %v: %v", podName, err)
+			}
+			err = exutil.WaitUntilPodIsGone(c.CoreV1().Pods(ns), podName, 2*time.Minute)
+			//e2epod.WaitForPodToDisappear(c, ns, podName, nil, 20*time.Second, 10*time.Minute)
+			if err != nil {
+				framework.Logf("Pod %s still exists.", podName)
+			} else {
+				framework.Logf("Confirmed Pod %s gone.", podName)
+			}
+			time.Sleep(retryStepTime)
+			framework.Logf("Trying to re-create Pod: %s", podName)
+			pod = p.createPodStruct(ns, labels, spec, i)
 			framework.ExpectNoError(err)
 		}
 		if tuning != nil {
@@ -186,7 +211,7 @@ func (p *ClusterLoaderObjectType) CreatePods(c kclientset.Interface, ns string, 
 			if tuning.Pods.Stepping.StepSize != 0 && (i+1)%tuning.Pods.Stepping.StepSize == 0 {
 				framework.Logf("Waiting for pods created this step to be running")
 				waitStartTime := time.Now()
-				pods, err := exutil.WaitForPods(c.CoreV1().Pods(ns), exutil.ParseLabelsOrDie(mapToString(labels)), exutil.CheckPodIsRunning, i+1, tuning.Pods.Stepping.Timeout*time.Second)
+				pods, err := exutil.WaitForPods(oc, c.CoreV1().Pods(ns), exutil.ParseLabelsOrDie(mapToString(labels)), exutil.CheckPodIsRunning, exutil.CheckPodIsNotReady, i+1, tuning.Pods.Stepping.Timeout*time.Second)
 				(*step).WaitPodsDurations = append((*step).WaitPodsDurations, time.Since(waitStartTime))
 				if err != nil {
 					framework.Failf("Error in pod wait... %v", err)
@@ -717,13 +742,103 @@ func DeleteProject(oc *exutil.CLI, name string, interval, timeout time.Duration)
 	err = wait.Poll(interval, timeout, func() (bool, error) {
 		exists, err := ProjectExists(oc, name)
 		if err != nil {
-			return true, err
+			e2e.Logf("Deletion of namespace %s failed with error %s. Re-trying till timeout.", name, err.Error())
+			return false, err
 		}
 		if exists {
 			e2e.Logf("The project %v is still there", name)
 			return false, nil
 		}
+		e2e.Logf("The project %v is still there", name)
 		return true, nil
 	})
 	return err
+}
+
+// Jitter returns a time.Duration between duration and duration + maxFactor * duration,
+// to allow clients to avoid converging on periodic behavior.  If maxFactor is 0.0, a
+// suggested default value will be chosen.
+func Jitter(duration time.Duration, maxFactor float64) time.Duration {
+	if maxFactor <= 0.0 {
+		maxFactor = 1.0
+	}
+	wait := duration + time.Duration(rand.Float64()*maxFactor*float64(duration))
+	return wait
+}
+
+// ErrWaitTimeout is returned when the condition exited without success
+var ErrWaitTimeout = errors.New("timed out waiting for the condition")
+
+// ConditionFunc returns true if the condition is satisfied, or an error
+// if the loop should be aborted.
+type ConditionFunc func() (done bool, err error)
+
+// Poll tries a condition func until it returns true, an error, or the timeout
+// is reached. condition will always be invoked at least once but some intervals
+// may be missed if the condition takes too long or the time window is too short.
+// If you pass maxTimes = 0, Poll will loop until condition returns true or an
+// error.
+func Poll(interval, timeout time.Duration, condition ConditionFunc) error {
+	return WaitFor(poller(interval, timeout), condition)
+}
+
+// WaitFunc creates a channel that receives an item every time a test
+// should be executed and is closed when the last test should be invoked.
+type WaitFunc func() <-chan struct{}
+
+// WaitFor gets a channel from wait(), and then invokes c once for every value
+// placed on the channel and once more when the channel is closed.  If c
+// returns an error the loop ends and that error is returned, and if c returns
+// true the loop ends and nil is returned. ErrWaitTimeout will be returned if
+// the channel is closed without c every returning true.
+func WaitFor(wait WaitFunc, c ConditionFunc) error {
+	w := wait()
+	for {
+		_, open := <-w
+		ok, err := c()
+		if err != nil {
+			return err
+		}
+		if ok {
+			return nil
+		}
+		if !open {
+			break
+		}
+	}
+	return ErrWaitTimeout
+}
+
+// poller returns a WaitFunc that will send to the channel every
+// interval until timeout has elapsed and then close the channel.
+// Over very short intervals you may receive no ticks before
+// the channel is closed closed.  If maxTimes is 0, the channel
+// will never be closed.
+func poller(interval, timeout time.Duration) WaitFunc {
+	return WaitFunc(func() <-chan struct{} {
+		ch := make(chan struct{})
+		go func() {
+			tick := time.NewTicker(interval)
+			defer tick.Stop()
+			var after <-chan time.Time
+			if timeout != 0 {
+				// time.After is more convenient, but it
+				// potentially leaves timers around much longer
+				// than necessary if we exit early.
+				timer := time.NewTimer(timeout)
+				after = timer.C
+				defer timer.Stop()
+			}
+			for {
+				select {
+				case <-tick.C:
+					ch <- struct{}{}
+				case <-after:
+					close(ch)
+					return
+				}
+			}
+		}()
+		return ch
+	})
 }

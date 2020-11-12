@@ -42,10 +42,10 @@ var _ = g.Describe("[image_ecosystem][mongodb] openshift mongodb image", func() 
 				o.Expect(err).ShouldNot(o.HaveOccurred())
 
 				g.By("expecting the mongodb pod is running")
-				podNames, err := exutil.WaitForPods(
+				podNames, err := exutil.WaitForPods(oc,
 					oc.KubeClient().CoreV1().Pods(oc.Namespace()),
 					exutil.ParseLabelsOrDie("name=mongodb"),
-					exutil.CheckPodIsRunning,
+					exutil.CheckPodIsRunning, exutil.CheckPodIsNotReady,
 					1,
 					4*time.Minute,
 				)

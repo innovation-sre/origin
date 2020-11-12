@@ -1,11 +1,11 @@
-FROM registry.svc.ci.openshift.org/ocp/builder:golang-1.12 AS builder
-WORKDIR /go/src/github.com/openshift/origin
+FROM registry.redhat.io/rhel8/go-toolset:1.12 AS builder
+WORKDIR /root/origin-4.3
 COPY . .
 RUN make build WHAT=cmd/openshift-tests; \
     mkdir -p /tmp/build; \
-    cp /go/src/github.com/openshift/origin/_output/local/bin/linux/$(go env GOARCH)/openshift-tests /tmp/build/openshift-tests
+    cp /root/origin-4.3/_output/local/bin/linux/$(go env GOARCH)/openshift-tests /tmp/build/openshift-tests
 
-FROM registry.svc.ci.openshift.org/ocp/4.2:cli
+FROM registry.redhat.io/openshift4/ose-cli:v4.3
 COPY --from=builder /tmp/build/openshift-tests /usr/bin/
 RUN yum install --setopt=tsflags=nodocs -y git gzip util-linux && yum clean all && rm -rf /var/cache/yum/* && \
     git config --system user.name test && \

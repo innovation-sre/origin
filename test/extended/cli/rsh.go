@@ -26,7 +26,7 @@ var _ = g.Describe("[cli]oc rsh[Conformance]", func() {
 			o.Expect(err).NotTo(o.HaveOccurred())
 
 			g.By("expecting the pod to be running")
-			pods, err := exutil.WaitForPods(oc.KubeClient().CoreV1().Pods(namespace), podsLabel, exutil.CheckPodIsRunning, 1, 4*time.Minute)
+			pods, err := exutil.WaitForPods(oc, oc.KubeClient().CoreV1().Pods(namespace), podsLabel, exutil.CheckPodIsRunning, exutil.CheckPodIsNotReady, 1, 4*time.Minute)
 			o.Expect(err).NotTo(o.HaveOccurred())
 
 			g.By("running the rsh command without specify container name")

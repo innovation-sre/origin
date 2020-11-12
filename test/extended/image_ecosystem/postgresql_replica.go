@@ -87,11 +87,11 @@ var _ = g.Describe("[image_ecosystem][postgresql][Slow][local] openshift postgre
 // CreatePostgreSQLReplicationHelpers creates a set of PostgreSQL helpers for master,
 // slave an en extra helper that is used for remote login test.
 func CreatePostgreSQLReplicationHelpers(c kcoreclient.PodInterface, masterDeployment, slaveDeployment, helperDeployment string, slaveCount int) (exutil.Database, []exutil.Database, exutil.Database) {
-	podNames, err := exutil.WaitForPods(c, exutil.ParseLabelsOrDie(fmt.Sprintf("deployment=%s", masterDeployment)), exutil.CheckPodIsRunning, 1, 4*time.Minute)
+	podNames, err := exutil.WaitForPods(nil, c, exutil.ParseLabelsOrDie(fmt.Sprintf("deployment=%s", masterDeployment)), exutil.CheckPodIsRunning, exutil.CheckPodIsNotReady, 1, 4*time.Minute)
 	o.Expect(err).NotTo(o.HaveOccurred())
 	masterPod := podNames[0]
 
-	slavePods, err := exutil.WaitForPods(c, exutil.ParseLabelsOrDie(fmt.Sprintf("deployment=%s", slaveDeployment)), exutil.CheckPodIsRunning, slaveCount, 6*time.Minute)
+	slavePods, err := exutil.WaitForPods(nil, c, exutil.ParseLabelsOrDie(fmt.Sprintf("deployment=%s", slaveDeployment)), exutil.CheckPodIsRunning, exutil.CheckPodIsNotReady, slaveCount, 6*time.Minute)
 	o.Expect(err).NotTo(o.HaveOccurred())
 
 	// Create PostgreSQL helper for master
@@ -104,7 +104,7 @@ func CreatePostgreSQLReplicationHelpers(c kcoreclient.PodInterface, masterDeploy
 		slaves[i] = slave
 	}
 
-	helperNames, err := exutil.WaitForPods(c, exutil.ParseLabelsOrDie(fmt.Sprintf("deployment=%s", helperDeployment)), exutil.CheckPodIsRunning, 1, 4*time.Minute)
+	helperNames, err := exutil.WaitForPods(nil, c, exutil.ParseLabelsOrDie(fmt.Sprintf("deployment=%s", helperDeployment)), exutil.CheckPodIsRunning, exutil.CheckPodIsNotReady, 1, 4*time.Minute)
 	o.Expect(err).NotTo(o.HaveOccurred())
 	helper := db.NewPostgreSQL(helperNames[0], masterPod)
 

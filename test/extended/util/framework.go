@@ -1271,7 +1271,7 @@ func WaitForAJob(c batchv1client.JobInterface, name string, timeout time.Duratio
 
 // WaitForPods waits until given number of pods that match the label selector and
 // satisfy the predicate are found
-func WaitForPods(c corev1client.PodInterface, label labels.Selector, predicate func(kapiv1.Pod) bool, count int, timeout time.Duration) ([]string, error) {
+func WaitForPods(oc *CLI, c corev1client.PodInterface, label labels.Selector, predicate func(kapiv1.Pod) bool, predicateNotReady func(kapiv1.Pod) bool, count int, timeout time.Duration) ([]string, error) {
 	var podNames []string
 	err := wait.Poll(1*time.Second, timeout, func() (bool, error) {
 		p, e := GetPodNamesByFilter(c, label, predicate)
@@ -1284,12 +1284,33 @@ func WaitForPods(c corev1client.PodInterface, label labels.Selector, predicate f
 		podNames = p
 		return true, nil
 	})
+	if err != nil && oc != nil {
+		podList, err := c.List(metav1.ListOptions{LabelSelector: label.String()})
+		if err != nil {
+			return nil, err
+		}
+		for _, pod := range podList.Items {
+			if predicateNotReady(pod) || podHasErrored(&pod) {
+				e2e.Logf("Failed Pod %s. State: %q", pod.Name, pod.Status.Phase)
+				e2e.Logf("Fetching Logs for Pod: %s", pod.Name)
+				if logs, err := getPodLogs(oc, &pod); err == nil {
+					e2e.Logf("---------------------Start of Logs-------------------------")
+					e2e.Logf(logs)
+					e2e.Logf("---------------------End of Logs-------------------------")
+				}
+			}
+		}
+	}
 	return podNames, err
 }
 
 // CheckPodIsRunning returns true if the pod is running
 func CheckPodIsRunning(pod kapiv1.Pod) bool {
 	return pod.Status.Phase == kapiv1.PodRunning
+}
+
+func CheckPodIsNotReady(pod kapiv1.Pod) bool {
+	return pod.Status.Phase == kapiv1.PodPending || pod.Status.Phase == kapiv1.PodFailed || pod.Status.Phase == kapiv1.PodReasonUnschedulable || pod.Status.Phase == kapiv1.PodUnknown
 }
 
 // CheckPodIsSucceeded returns true if the pod status is "Succdeded"
@@ -1614,7 +1635,7 @@ func NewPodExecutor(oc *CLI, name, image string) (*podExecutor, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error: %v\n(%s)", err, out)
 	}
-	_, err = WaitForPods(oc.KubeClient().CoreV1().Pods(oc.Namespace()), ParseLabelsOrDie("name="+name), CheckPodIsReady, 1, 3*time.Minute)
+	_, err = WaitForPods(oc, oc.KubeClient().CoreV1().Pods(oc.Namespace()), ParseLabelsOrDie("name="+name), CheckPodIsReady, CheckPodIsNotReady, 1, 3*time.Minute)
 	if err != nil {
 		return nil, err
 	}

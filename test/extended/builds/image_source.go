@@ -87,7 +87,7 @@ var _ = g.Describe("[Feature:Builds][Slow] build can have container image source
 				br.AssertSuccess()
 
 				g.By("expecting the pod to deploy successfully")
-				pods, err := exutil.WaitForPods(oc.KubeClient().CoreV1().Pods(oc.Namespace()), imageSourceLabel, exutil.CheckPodIsRunning, 1, 4*time.Minute)
+				pods, err := exutil.WaitForPods(oc, oc.KubeClient().CoreV1().Pods(oc.Namespace()), imageSourceLabel, exutil.CheckPodIsRunning, exutil.CheckPodIsNotReady, 1, 4*time.Minute)
 				o.Expect(err).NotTo(o.HaveOccurred())
 				o.Expect(len(pods)).To(o.Equal(1))
 				pod, err := oc.KubeClient().CoreV1().Pods(oc.Namespace()).Get(pods[0], metav1.GetOptions{})
@@ -114,7 +114,7 @@ var _ = g.Describe("[Feature:Builds][Slow] build can have container image source
 				br.AssertSuccess()
 
 				g.By("expect the pod to deploy successfully")
-				pods, err := exutil.WaitForPods(oc.KubeClient().CoreV1().Pods(oc.Namespace()), imageDockerLabel, exutil.CheckPodIsRunning, 1, 4*time.Minute)
+				pods, err := exutil.WaitForPods(oc, oc.KubeClient().CoreV1().Pods(oc.Namespace()), imageDockerLabel, exutil.CheckPodIsRunning, exutil.CheckPodIsNotReady,1, 4*time.Minute)
 				o.Expect(err).NotTo(o.HaveOccurred())
 				o.Expect(len(pods)).To(o.Equal(1))
 				pod, err := oc.KubeClient().CoreV1().Pods(oc.Namespace()).Get(pods[0], metav1.GetOptions{})
@@ -141,7 +141,7 @@ var _ = g.Describe("[Feature:Builds][Slow] build can have container image source
 				o.Expect(err).NotTo(o.HaveOccurred())
 
 				g.By("expecting the build pod to exist")
-				pods, err := exutil.WaitForPods(oc.KubeClient().CoreV1().Pods(oc.Namespace()), sourceBuildLabel, exutil.CheckPodNoOp, 1, 4*time.Minute)
+				pods, err := exutil.WaitForPods(oc, oc.KubeClient().CoreV1().Pods(oc.Namespace()), sourceBuildLabel, exutil.CheckPodNoOp, exutil.CheckPodIsNotReady, 1, 4*time.Minute)
 				o.Expect(err).NotTo(o.HaveOccurred())
 				o.Expect(len(pods)).To(o.Equal(1))
 				pod, err := oc.KubeClient().CoreV1().Pods(oc.Namespace()).Get(pods[0], metav1.GetOptions{})
@@ -186,7 +186,7 @@ var _ = g.Describe("[Feature:Builds][Slow] build can have container image source
 				o.Expect(err).NotTo(o.HaveOccurred())
 
 				g.By("expecting the build pod to exist")
-				pods, err := exutil.WaitForPods(oc.KubeClient().CoreV1().Pods(oc.Namespace()), dockerBuildLabel, exutil.CheckPodNoOp, 1, 4*time.Minute)
+				pods, err := exutil.WaitForPods(oc, oc.KubeClient().CoreV1().Pods(oc.Namespace()), dockerBuildLabel, exutil.CheckPodNoOp, exutil.CheckPodIsNotReady, 1, 4*time.Minute)
 				o.Expect(err).NotTo(o.HaveOccurred())
 				o.Expect(len(pods)).To(o.Equal(1))
 				pod, err := oc.KubeClient().CoreV1().Pods(oc.Namespace()).Get(pods[0], metav1.GetOptions{})
@@ -231,7 +231,7 @@ var _ = g.Describe("[Feature:Builds][Slow] build can have container image source
 				o.Expect(err).NotTo(o.HaveOccurred())
 
 				g.By("expecting the build pod to exist")
-				pods, err := exutil.WaitForPods(oc.KubeClient().CoreV1().Pods(oc.Namespace()), customBuildLabel, exutil.CheckPodNoOp, 1, 4*time.Minute)
+				pods, err := exutil.WaitForPods(oc, oc.KubeClient().CoreV1().Pods(oc.Namespace()), customBuildLabel, exutil.CheckPodNoOp, exutil.CheckPodIsNotReady, 1, 4*time.Minute)
 				o.Expect(err).NotTo(o.HaveOccurred())
 				o.Expect(len(pods)).To(o.Equal(1))
 				pod, err := oc.KubeClient().CoreV1().Pods(oc.Namespace()).Get(pods[0], metav1.GetOptions{})

@@ -95,7 +95,7 @@ var _ = g.Describe("[Feature:Builds][Slow] testing build configuration hooks", f
 
 				g.By("expecting the pod to deploy successfully")
 				deploymentConfigLabel := exutil.ParseLabelsOrDie("app=mys2itest")
-				pods, err := exutil.WaitForPods(oc.KubeClient().CoreV1().Pods(oc.Namespace()), deploymentConfigLabel, exutil.CheckPodIsRunning, 1, 2*time.Minute)
+				pods, err := exutil.WaitForPods(oc, oc.KubeClient().CoreV1().Pods(oc.Namespace()), deploymentConfigLabel, exutil.CheckPodIsRunning, exutil.CheckPodIsNotReady, 1, 2*time.Minute)
 				o.Expect(err).NotTo(o.HaveOccurred())
 				o.Expect(len(pods)).To(o.Equal(1))
 
@@ -171,7 +171,7 @@ var _ = g.Describe("[Feature:Builds][Slow] testing build configuration hooks", f
 
 				g.By("expecting the pod to deploy successfully")
 				deploymentConfigLabel := exutil.ParseLabelsOrDie("app=mydockertest")
-				pods, err := exutil.WaitForPods(oc.KubeClient().CoreV1().Pods(oc.Namespace()), deploymentConfigLabel, exutil.CheckPodIsRunning, 1, 2*time.Minute)
+				pods, err := exutil.WaitForPods(oc, oc.KubeClient().CoreV1().Pods(oc.Namespace()), deploymentConfigLabel, exutil.CheckPodIsRunning, exutil.CheckPodIsNotReady, 1, 2*time.Minute)
 				o.Expect(err).NotTo(o.HaveOccurred())
 				o.Expect(len(pods)).To(o.Equal(1))
 

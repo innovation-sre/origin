@@ -21,8 +21,9 @@ import (
 )
 
 const checkDeleteProjectInterval = 10 * time.Second
-const checkDeleteProjectTimeout = 3 * time.Minute
-const checkPodRunningTimeout = 5 * time.Minute
+const checkDeleteProjectTimeout = 30 * time.Minute
+const checkPodRunningTimeout = 10 * time.Minute
+const retryStepTime = 10 * time.Second
 
 // TODO sjug: pass label via config
 var podLabelMap = map[string]string{"purpose": "test"}
@@ -122,6 +123,12 @@ var _ = g.Describe("[Feature:Performance][Serial][Slow] Load cluster", func() {
 				// label namespace nsName
 				if p.Labels != nil {
 					_, err = SetNamespaceLabels(c, nsName, p.Labels)
+					if err != nil {
+						e2e.Logf("%d/%d : Warning setting up namespace. Trying in %f seconds. Error: %v", j+1, p.Number,
+							retryStepTime.Seconds(), err.Error())
+						time.Sleep(retryStepTime)
+						_, err = SetNamespaceLabels(c, nsName, p.Labels)
+					}
 					o.Expect(err).NotTo(o.HaveOccurred())
 				}
 				namespaces = append(namespaces, nsName)
@@ -193,7 +200,7 @@ var _ = g.Describe("[Feature:Performance][Serial][Slow] Load cluster", func() {
 						}
 					}
 					step := metrics.NewPodStepDuration(rateDelay, stepPause)
-					err = pod.CreatePods(c, nsName, podLabelMap, config.Spec, tuning, &step)
+					err = pod.CreatePods(oc, c, nsName, podLabelMap, config.Spec, tuning, &step)
 					steps = append(steps, step)
 					o.Expect(err).NotTo(o.HaveOccurred())
 				}
@@ -277,7 +284,7 @@ func postCreateWait(oc *util.CLI, namespaces []string) error {
 		if podCount > 0 {
 			e2e.Logf("Waiting for %d pods in namespace %s", podCount, ns)
 			c := oc.AdminKubeClient()
-			pods, err := exutil.WaitForPods(c.CoreV1().Pods(ns), podLabels, exutil.CheckPodIsRunning, podCount, checkPodRunningTimeout)
+			pods, err := exutil.WaitForPods(oc, c.CoreV1().Pods(ns), podLabels, exutil.CheckPodIsRunning, exutil.CheckPodIsNotReady, podCount, checkPodRunningTimeout)
 			if err != nil {
 				return fmt.Errorf("Error in pod wait: %v", err)
 			} else if len(pods) < podCount {
