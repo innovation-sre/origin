@@ -124,7 +124,7 @@ var _ = g.Describe("[Feature:Performance][Serial][Slow] Load cluster", func() {
 				if p.Labels != nil {
 					_, err = SetNamespaceLabels(c, nsName, p.Labels)
 					if err != nil {
-						e2e.Logf("%d/%d : Warning setting up namespace. Trying in %f seconds. Error: %v", j+1, p.Number,
+						e2e.Logf("%d/%d : Warning setting up namespace. Trying in %.2f seconds. Error: %v", j+1, p.Number,
 							retryStepTime.Seconds(), err.Error())
 						time.Sleep(retryStepTime)
 						_, err = SetNamespaceLabels(c, nsName, p.Labels)
@@ -149,10 +149,15 @@ var _ = g.Describe("[Feature:Performance][Serial][Slow] Load cluster", func() {
 
 				// Create templates as defined
 				for _, template := range p.Templates {
-					var rateDelay, stepPause time.Duration
+					var rateDelay, initDelay, stepPause time.Duration
 					if tuning != nil {
 						if tuning.Templates.RateLimit.Delay != 0 {
 							rateDelay = tuning.Templates.RateLimit.Delay
+						}
+						if tuning.Templates.RateLimit.InitialDelay != 0 {
+							initDelay = tuning.Templates.RateLimit.InitialDelay
+							e2e.Logf("Logging an initial delay of %ds.", initDelay)
+							time.Sleep(initDelay)
 						}
 						if tuning.Templates.Stepping.Pause != 0 {
 							stepPause = tuning.Templates.Stepping.Pause

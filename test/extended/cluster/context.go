@@ -83,6 +83,7 @@ type TuningSetObjectType struct {
 	}
 	RateLimit struct {
 		Delay time.Duration
+		InitialDelay time.Duration
 	}
 }
 
